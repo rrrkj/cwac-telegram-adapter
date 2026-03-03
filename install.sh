@@ -200,6 +200,28 @@ else
 fi
 info "Primary user ID: ${TELEGRAM_USER_ID}"
 
+# ── Inject wildcard "always allow" permissions into opencode's SQLite DB ──────
+# This ensures opencode never blocks on interactive permission prompts when running headlessly
+echo "🔧 Configuring opencode permissions for headless execution..."
+python3 -c "
+import sqlite3, os, time
+db_path = os.path.expanduser('~/.local/share/opencode/opencode.db')
+if os.path.exists(db_path):
+    try:
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        t = int(time.time() * 1000)
+        c.execute(\"\"\"
+        INSERT OR REPLACE INTO permission (project_id, time_created, time_updated, data)
+        VALUES ('global', ?, ?, '[{\\\"permission\\\":\\\"*\\\",\\\"pattern\\\":\\\"*\\\",\\\"action\\\":\\\"allow\\\"}]')
+        \"\"\", (t, t))
+        conn.commit()
+        conn.close()
+        print('✅ Permissions configured successfully')
+    except Exception as e:
+        print(f'⚠️ Could not configure permissions: {e}')
+"
+
 # ── Port ──────────────────────────────────────────────────────────────────────
 echo ""
 DEFAULT_PORT="${EXISTING_PORT:-3001}"
