@@ -7,7 +7,7 @@ import { AgentRunner } from './base';
 
 const logger = pino({ name: 'agent:opencode' });
 
-const DEFAULT_TIMEOUT_MS = 3_600_000; // 60 minutes
+const DEFAULT_TIMEOUT_MS = 5 * 60_000; // 5 minutes — keeps Telegram responsive
 
 /**
  * opencode agent runner — uses the opencode CLI (`opencode run`).
