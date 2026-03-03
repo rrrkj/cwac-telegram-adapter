@@ -75,7 +75,7 @@ export class OpencodeRunner implements AgentRunner {
             }
 
             // Build args: opencode run <prompt> --format json [--session <id>]
-            const args: string[] = ['run', actualPrompt, '--format', 'json'];
+            const args: string[] = ['run', actualPrompt, '--format', 'json', '--port', '0'];
             if (sessionId) {
                 args.push('--session', sessionId);
                 logger.info({ taskId, sessionId }, 'Continuing opencode session');
