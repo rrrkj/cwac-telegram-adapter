@@ -103,6 +103,11 @@ async function handleSystemCommand(userId: string, command: string, args: string
             await handleCancelCommand(userId);
             break;
 
+        case '/new':
+            sessionManager.clearOpencodeSession(userId);
+            await sendTextMessage(userId, '🆕 *New session started.*\n\nYour conversation history has been cleared. The next message will start a fresh context.');
+            break;
+
         case '/pair':
             await handlePairCommand(userId, args);
             break;

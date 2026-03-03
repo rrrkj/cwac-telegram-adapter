@@ -72,6 +72,7 @@ export function getHelpText(): string {
         '`/default <agent> [workspace]` — Set default agent & workspace',
         '`/history` — Show last 10 tasks',
         '`/cancel` — Cancel the running task',
+        '`/new` — Start a fresh conversation (clear session memory)',
         '`/pair` — Get a pairing code for your dev machine',
         '`/help` — Show this message',
         '',
