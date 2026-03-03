@@ -98,17 +98,29 @@ elif [ -d "${CWAC_DIR}" ] && [ -f "${CWAC_DIR}/package.json" ]; then
 else
     echo ""
     echo -e "  ${BOLD}Git URL for connect-with-all-code${NC}"
-    echo "  (Leave empty for: https://github.com/your-org/connect-with-all-code.git)"
+    echo "  (Leave empty to use: https://github.com/rrrkj/connect-with-all-code.git)"
     read -rp "  > " CWAC_URL
-    CWAC_URL="${CWAC_URL:-https://github.com/your-org/connect-with-all-code.git}"
+    CWAC_URL="${CWAC_URL:-https://github.com/rrrkj/connect-with-all-code.git}"
     git clone "${CWAC_URL}" "${CWAC_DIR}" || die "Clone failed"
 fi
 
 step "Building cwac (shared + connector)..."
 cd "${CWAC_DIR}"
 npm install --silent 2>&1 | tail -1
+
+# ── Apply session-persistence patch to the opencode agent ──────────────────
+# Our patch adds --session support so conversation history persists across
+# messages. Without this, every Telegram message starts a fresh session.
+PATCH_SRC="${ADAPTER_DIR}/patches/cwac-opencode-agent.ts"
+PATCH_DST="${CWAC_DIR}/connector/src/agents/opencode.ts"
+if [ -f "${PATCH_SRC}" ]; then
+    cp "${PATCH_SRC}" "${PATCH_DST}"
+    info "Session-persistence patch applied to opencode agent"
+else
+    warn "Patch file not found at ${PATCH_SRC} — session memory may not work"
+fi
+
 npm run build -w shared 2>&1 | grep -iE 'error' || true
-# Build connector — only enable opencode (the only agent installed)
 npm run build -w connector 2>&1 | grep -iE 'error' || true
 info "cwac built"
 cd "${ADAPTER_DIR}"
@@ -308,18 +320,17 @@ sudo tee "${SYSTEMD_DIR}/cwac-connector.service" > /dev/null << EOF
 [Unit]
 Description=ConnectWithAllCode Connector Agent
 After=cwac-telegram.service network-online.target
-Wants=cwac-telegram.service
+BindsTo=cwac-telegram.service
 
 [Service]
 Type=simple
 User=${USER:-root}
 WorkingDirectory=${CWAC_DIR}
 EnvironmentFile=${CONNECTOR_ENV_FILE}
-# Wait 5s for gateway to fully start before connecting
-ExecStartPre=/bin/sleep 5
+ExecStartPre=/bin/sleep 6
 ExecStart=${NODE_BIN} ${CWAC_DIR}/connector/dist/index.js --pair \${PAIRING_CODE}
 Restart=always
-RestartSec=10
+RestartSec=8
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=cwac-connector
@@ -328,7 +339,7 @@ LimitNOFILE=65535
 [Install]
 WantedBy=multi-user.target
 EOF
-info "cwac-connector.service written"
+info "cwac-connector.service written (BindsTo gateway)"
 
 # ─── Enable & start ───────────────────────────────────────────────────────────
 step "Enabling services and starting..."
