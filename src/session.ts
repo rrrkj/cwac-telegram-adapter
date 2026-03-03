@@ -2,8 +2,11 @@ import { UserSession, AgentType } from './types';
 import pino from 'pino';
 import path from 'path';
 import os from 'os';
+import fs from 'fs';
 
 const logger = pino({ name: 'session' });
+
+const SESSIONS_FILE = path.join(__dirname, '..', 'auth_store', 'sessions.json');
 
 /**
  * In-memory session store keyed by Telegram chat ID.
@@ -20,6 +23,42 @@ class SessionManager {
     private opencodeSessionIds = new Map<string, string>();
     // History of last 10 opencode sessions per user
     private sessionHistories = new Map<string, SessionRecord[]>();
+
+    constructor() {
+        this.loadFromDisk();
+    }
+
+    private loadFromDisk() {
+        try {
+            if (fs.existsSync(SESSIONS_FILE)) {
+                const data = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf-8'));
+                if (data.opencodeSessionIds) {
+                    this.opencodeSessionIds = new Map(Object.entries(data.opencodeSessionIds));
+                }
+                if (data.sessionHistories) {
+                    this.sessionHistories = new Map(Object.entries(data.sessionHistories));
+                }
+                logger.info('📂 Loaded session history from disk');
+            }
+        } catch (err: any) {
+            logger.error({ err: err.message }, 'Failed to load session history from disk');
+        }
+    }
+
+    private saveToDisk() {
+        try {
+            const dir = path.dirname(SESSIONS_FILE);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+            const data = {
+                opencodeSessionIds: Object.fromEntries(this.opencodeSessionIds),
+                sessionHistories: Object.fromEntries(this.sessionHistories),
+            };
+            fs.writeFileSync(SESSIONS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+        } catch (err: any) {
+            logger.error({ err: err.message }, 'Failed to save session history to disk');
+        }
+    }
 
     getSession(userId: string): UserSession {
         let session = this.sessions.get(userId);
@@ -66,6 +105,7 @@ class SessionManager {
 
     setOpencodeSession(userId: string, sessionId: string): void {
         this.opencodeSessionIds.set(userId, sessionId);
+        this.saveToDisk();
     }
 
     getOpencodeSessionId(userId: string): string | null {
@@ -74,6 +114,7 @@ class SessionManager {
 
     clearOpencodeSession(userId: string): void {
         this.opencodeSessionIds.delete(userId);
+        this.saveToDisk();
     }
 
     /** Record a session into the per-user history (max 10 entries, deduped by ID). */
@@ -89,6 +130,7 @@ class SessionManager {
             ...deduped,
         ].slice(0, 10);
         this.sessionHistories.set(userId, updated);
+        this.saveToDisk();
     }
 
     getSessionHistory(userId: string): SessionRecord[] {
