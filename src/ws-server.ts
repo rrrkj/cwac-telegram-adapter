@@ -184,6 +184,9 @@ export function requestStatus(userId: string): boolean {
     const requestId = uuidv4();
     pendingStatusRequests.set(requestId, userId);
 
+    // Auto-cleanup if no response to prevent memory leak
+    setTimeout(() => pendingStatusRequests.delete(requestId), 10_000);
+
     const msg: WsStatusRequest = {
         type: WsMessageType.STATUS_REQUEST,
         requestId,

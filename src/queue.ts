@@ -13,7 +13,6 @@ type ResultCallback = (result: TaskResult) => void;
  */
 class TaskQueue {
     private queue: Task[] = [];
-    private results = new Map<string, TaskResult>();
     private history: Task[] = [];
     private onTask: TaskCallback | null = null;
     private onResult: ResultCallback | null = null;
@@ -40,6 +39,11 @@ class TaskQueue {
 
         this.queue.push(task);
         this.history.push(task);
+        // Cap history to prevent memory leak over time
+        if (this.history.length > 500) {
+            this.history.shift();
+        }
+
         logger.info({ taskId: task.id, agent, userId }, 'Task enqueued');
         this.processNext();
         return task;
@@ -58,8 +62,6 @@ class TaskQueue {
     }
 
     completeTask(result: TaskResult): void {
-        this.results.set(result.taskId, result);
-
         const task = this.history.find((t) => t.id === result.taskId);
         if (task) {
             task.status = result.status;
