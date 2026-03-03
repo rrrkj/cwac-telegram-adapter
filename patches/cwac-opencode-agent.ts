@@ -142,7 +142,7 @@ export class OpencodeRunner implements AgentRunner {
                 cwd: cwd || undefined,
                 env: { ...process.env },
                 stdio: ['pipe', 'pipe', 'pipe'],
-                shell: true,
+                shell: process.platform === 'win32',
             });
 
             proc.stdin.end();
