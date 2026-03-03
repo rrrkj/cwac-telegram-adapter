@@ -42,6 +42,7 @@ export const SYSTEM_COMMANDS = [
     '/pair',
     '/start',
     '/new',
+    '/switch',
 ] as const;
 
 export type SystemCommand = (typeof SYSTEM_COMMANDS)[number];

@@ -7,8 +7,8 @@ import {
     AgentStatusMap,
 } from './types';
 import { parseCommand, getHelpText } from './parser';
-import { sendTextMessage } from './telegram';
-import { sessionManager } from './session';
+import { sendTextMessage, sendInlineKeyboard, answerCallbackQuery } from './telegram';
+import { sessionManager, SessionRecord } from './session';
 import { taskQueue } from './queue';
 import {
     dispatchTask,
@@ -106,6 +106,10 @@ async function handleSystemCommand(userId: string, command: string, args: string
         case '/new':
             sessionManager.clearOpencodeSession(userId);
             await sendTextMessage(userId, '🆕 *New session started.*\n\nYour conversation history has been cleared. The next message will start a fresh context.');
+            break;
+
+        case '/switch':
+            await handleSwitchCommand(userId);
             break;
 
         case '/pair':
@@ -219,6 +223,48 @@ async function handlePairCommand(userId: string, args: string): Promise<void> {
     await sendTextMessage(userId, `🔗 Waiting for device with code \`${code}\`...`);
 }
 
+async function handleSwitchCommand(userId: string): Promise<void> {
+    const history = sessionManager.getSessionHistory(userId);
+
+    if (history.length === 0) {
+        await sendTextMessage(userId, '📂 No session history yet.\n\nSend some messages first — each conversation creates a session you can switch back to.');
+        return;
+    }
+
+    const currentId = sessionManager.getOpencodeSessionId(userId);
+
+    const text = '🔀 *Switch Session*\n\nTap to switch to a previous conversation:';
+    const buttons = history.map((record, i) => {
+        const date = new Date(record.startedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        const isCurrent = record.sessionId === currentId ? ' ✅' : '';
+        const label = `${i + 1}. ${date}${isCurrent} — ${record.preview.slice(0, 30)}`;
+        return [{ text: label, callbackData: `switch:${record.sessionId}` }];
+    });
+
+    await sendInlineKeyboard(userId, text, buttons);
+}
+
+/** Called by index.ts when user taps an inline keyboard button. */
+export async function handleSwitchCallback(userId: string, data: string, queryId: string): Promise<void> {
+    if (!data.startsWith('switch:')) return;
+    const sessionId = data.slice('switch:'.length);
+
+    const history = sessionManager.getSessionHistory(userId);
+    const record = history.find(r => r.sessionId === sessionId);
+
+    if (!record) {
+        await answerCallbackQuery(queryId, '⚠️ Session not found');
+        return;
+    }
+
+    sessionManager.setOpencodeSession(userId, sessionId);
+    await answerCallbackQuery(queryId, '✅ Switched!');
+    await sendTextMessage(
+        userId,
+        `🔀 *Switched session*\n\n📝 Context: _${record.preview}_\n\nYou're now continuing that conversation.`
+    );
+}
+
 // ─── Result / Status Callbacks (called by ws-server) ─────────────────────────
 
 export async function handleStatusResponse(userId: string, agents: AgentStatusMap): Promise<void> {
@@ -248,7 +294,13 @@ export async function handleTaskResultMessage(
     } else {
         const { text, sessionId } = parseAgentOutput(output);
         // Persist session ID for next message (conversation continuity)
-        if (sessionId) sessionManager.setOpencodeSession(userId, sessionId);
+        if (sessionId) {
+            // Store in history with the task prompt as preview
+            const task = history.find((t) => t.id === taskId);
+            const preview = task ? task.prompt.replace(/^\[SESSION:[^\]]+\]\s*/, '') : '?';
+            sessionManager.addToSessionHistory(userId, sessionId, preview);
+            sessionManager.setOpencodeSession(userId, sessionId);
+        }
         await sendTextMessage(userId, `✅ *${agentName}* | Done:\n\n${text}`);
     }
 }

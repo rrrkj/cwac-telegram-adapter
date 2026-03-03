@@ -73,6 +73,7 @@ export function getHelpText(): string {
         '`/history` — Show last 10 tasks',
         '`/cancel` — Cancel the running task',
         '`/new` — Start a fresh conversation (clear session memory)',
+        '`/switch` — Browse & switch between your last 10 sessions',
         '`/pair` — Get a pairing code for your dev machine',
         '`/help` — Show this message',
         '',

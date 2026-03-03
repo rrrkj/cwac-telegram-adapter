@@ -2,10 +2,10 @@ import express from 'express';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
 import pino from 'pino';
-import { initTelegram, onInboundMessage } from './telegram';
+import { initTelegram, onInboundMessage, onCallbackQuery } from './telegram';
 import { initWsServer, onResult, onStatus, registerAutoPair } from './ws-server';
 import { taskQueue } from './queue';
-import { handleInboundMessage, handleTaskResultMessage, handleStatusResponse } from './router';
+import { handleInboundMessage, handleTaskResultMessage, handleStatusResponse, handleSwitchCallback } from './router';
 
 dotenv.config();
 
@@ -76,6 +76,12 @@ if (CONNECTOR_SECRET && TELEGRAM_USER_ID) {
         onInboundMessage((chatId, text) => {
             handleInboundMessage(chatId, text).catch((err) => {
                 logger.error({ err: err.message, chatId }, 'Error handling inbound message');
+            });
+        });
+
+        onCallbackQuery((chatId, data, queryId) => {
+            handleSwitchCallback(chatId, data, queryId).catch((err) => {
+                logger.error({ err: err.message, chatId }, 'Error handling callback query');
             });
         });
 

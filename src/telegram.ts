@@ -7,6 +7,7 @@ const MAX_MESSAGE_LENGTH = 4096;
 
 let bot: TelegramBot | null = null;
 let inboundHandler: ((chatId: string, text: string) => void) | null = null;
+let callbackHandler: ((chatId: string, data: string, callbackQueryId: string) => void) | null = null;
 
 interface TelegramConfig {
     token: string;
@@ -44,13 +45,11 @@ export async function initTelegram(cfg: TelegramConfig): Promise<void> {
     // Step 2: Start the real polling bot with explicit allowed_updates.
     bot = new TelegramBot(token, {
         polling: {
-            interval: 1000,     // poll every second
+            interval: 1000,
             autoStart: true,
             params: {
                 timeout: 10,
-                // CRITICAL: without this, Telegram may not send 'message' updates
-                // to long-polling clients — resulting in zero inbound events.
-                allowed_updates: ['message', 'edited_message'] as string[],
+                allowed_updates: ['message', 'edited_message', 'callback_query'] as string[],
             },
         },
     });
@@ -81,8 +80,21 @@ export async function initTelegram(cfg: TelegramConfig): Promise<void> {
     bot.on('message', (msg) => {
         const chatId = String(msg.chat.id);
         const text = msg.text;
-        if (!text) return; // skip non-text (photos, stickers, etc.)
+        if (!text) return;
         dispatch(chatId, text);
+    });
+
+    // ─── Callback query handler (inline keyboard button taps) ─────────────────
+
+    bot.on('callback_query', (query) => {
+        if (!query.data || !query.message) return;
+        const chatId = String(query.message.chat.id);
+        const data = query.data;
+        const queryId = query.id;
+        if (allowlist.length > 0 && !allowlist.includes(chatId)) return;
+        if (callbackHandler) {
+            try { callbackHandler(chatId, data, queryId); } catch { /* ignore */ }
+        }
     });
 
     // ─── Error Handling — auto-restart on fatal polling errors ────────────────
@@ -148,6 +160,47 @@ export async function initTelegram(cfg: TelegramConfig): Promise<void> {
  */
 export function onInboundMessage(handler: (chatId: string, text: string) => void): void {
     inboundHandler = handler;
+}
+
+/**
+ * Register a handler for inline keyboard button taps (callback queries).
+ */
+export function onCallbackQuery(handler: (chatId: string, data: string, queryId: string) => void): void {
+    callbackHandler = handler;
+}
+
+/**
+ * Answer a callback query — removes the loading spinner from the button.
+ */
+export async function answerCallbackQuery(queryId: string, text?: string): Promise<void> {
+    if (!bot) return;
+    try {
+        await bot.answerCallbackQuery(queryId, { text });
+    } catch { /* ignore */ }
+}
+
+/**
+ * Send a message with inline keyboard buttons.
+ * buttons: array of rows, each row is [{text, callbackData}]
+ */
+export async function sendInlineKeyboard(
+    chatId: string,
+    text: string,
+    buttons: { text: string; callbackData: string }[][]
+): Promise<void> {
+    if (!bot) { logger.error('Bot not initialized'); return; }
+    try {
+        await bot.sendMessage(chatId, text, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: buttons.map(row =>
+                    row.map(btn => ({ text: btn.text, callback_data: btn.callbackData }))
+                ),
+            },
+        });
+    } catch (err: any) {
+        logger.error({ err: err.message }, 'Failed to send inline keyboard');
+    }
 }
 
 /**
