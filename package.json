@@ -1,0 +1,35 @@
+{
+    "name": "cwac-telegram-adapter",
+    "version": "1.0.0",
+    "description": "Telegram adapter for connect-with-all-code — control your AI coding agents via Telegram",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx watch src/index.ts",
+        "start": "node dist/index.js",
+        "lint": "tsc --noEmit"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.0",
+        "express": "^4.21.0",
+        "js-yaml": "^4.1.0",
+        "node-telegram-bot-api": "^0.66.0",
+        "pino": "^9.0.0",
+        "pino-pretty": "^11.0.0",
+        "uuid": "^10.0.0",
+        "ws": "^8.18.0"
+    },
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/js-yaml": "^4.0.9",
+        "@types/node": "^20.0.0",
+        "@types/node-telegram-bot-api": "^0.64.0",
+        "@types/uuid": "^10.0.0",
+        "@types/ws": "^8.5.0",
+        "tsx": "^4.19.0",
+        "typescript": "^5.4.0"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}

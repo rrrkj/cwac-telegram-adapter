@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+.connector.env
+logs/
+auth_store/
+*.log
